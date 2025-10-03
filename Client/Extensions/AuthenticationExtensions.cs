@@ -23,13 +23,18 @@ namespace CompanyEmployees.Client.Extensions
             if (authSettings.UseLocalLogin)
             {
                 ConfigureLocalAuthentication(services, authSettings.LocalAuth);
+                // Only register LocalAuthenticationService when using local authentication
+                services.AddScoped<Services.IAuthenticationService, LocalAuthenticationService>();
             }
             else
             {
+                if (authSettings.IdentityServer == null)
+                    throw new InvalidOperationException("IdentityServer settings are not configured.");
+                    
                 ConfigureIDPAuthentication(services, authSettings.IdentityServer);
+                // For IDP authentication, we don't need a custom authentication service
+                // The built-in OpenIdConnect middleware handles authentication
             }
-
-            services.AddScoped<Services.IAuthenticationService, LocalAuthenticationService>();
         }
 
         private static void ConfigureLocalAuthentication(IServiceCollection services, LocalAuthSettings authSettings)

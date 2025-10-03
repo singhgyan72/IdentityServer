@@ -8,13 +8,13 @@ namespace CompanyEmployees.Client.Controllers
 {
     public class AccountController : Controller
     {
-        private readonly IAuthService _authService;
+        private readonly IAuthService? _authService;
         private readonly IConfiguration _configuration;
 
-        public AccountController(IAuthService authService, IConfiguration configuration)
+        public AccountController(IConfiguration configuration, IAuthService? authService = null)
         {
-            _authService = authService;
             _configuration = configuration;
+            _authService = authService;
         }
 
         [HttpGet]
@@ -38,8 +38,23 @@ namespace CompanyEmployees.Client.Controllers
         {
             ViewData["ReturnUrl"] = returnUrl;
 
+            // Check if using IDP authentication
+            var authSettings = _configuration.GetSection("Authentication").Get<AuthenticationSettings>();
+            if (authSettings != null && !authSettings.UseLocalLogin)
+            {
+                // For IDP, redirect to challenge
+                return Challenge(new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = returnUrl ?? "/" });
+            }
+
             if (!ModelState.IsValid)
             {
+                return View(model);
+            }
+
+            // Only call authentication service for local login
+            if (_authService == null)
+            {
+                ModelState.AddModelError(string.Empty, "Authentication service not available");
                 return View(model);
             }
 
@@ -96,8 +111,24 @@ namespace CompanyEmployees.Client.Controllers
         {
             ViewData["ReturnUrl"] = returnUrl;
 
+            // Check if using IDP authentication
+            var authSettings = _configuration.GetSection("Authentication").Get<AuthenticationSettings>();
+            if (authSettings != null && !authSettings.UseLocalLogin)
+            {
+                // For IDP, registration is not handled by the client
+                ModelState.AddModelError(string.Empty, "Registration is handled by the Identity Provider.");
+                return View(model);
+            }
+
             if (!ModelState.IsValid)
             {
+                return View(model);
+            }
+
+            // Only call authentication service for local registration
+            if (_authService == null)
+            {
+                ModelState.AddModelError(string.Empty, "Local registration not available");
                 return View(model);
             }
 
@@ -127,24 +158,30 @@ namespace CompanyEmployees.Client.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
-            // Clear local authentication cookies
-            foreach (var cookie in HttpContext.Request.Cookies.Keys)
-            {
-                Response.Cookies.Delete(cookie);
-            }
-
-            await _authService.LogoutAsync();
-
-            // If using IDP, also sign out from there
             var authSettings = _configuration.GetSection("Authentication").Get<AuthenticationSettings>();
+            
             if (authSettings != null && !authSettings.UseLocalLogin)
             {
+                // IDP logout
                 return SignOut(
                     new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = "/" },
                     "Cookies", "OpenIdConnect");
             }
+            else
+            {
+                // Local logout
+                // Clear local authentication cookies
+                foreach (var cookie in HttpContext.Request.Cookies.Keys)
+                {
+                    Response.Cookies.Delete(cookie);
+                }
 
-            return RedirectToAction("Index", "Home");
+                if (_authService != null)
+                {
+                    await _authService.LogoutAsync();
+                }
+                return RedirectToAction("Index", "Home");
+            }
         }
 
         private IActionResult RedirectToLocal(string? returnUrl)

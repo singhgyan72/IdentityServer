@@ -45,6 +45,9 @@ namespace CompanyEmployees.Client.Services
                 return new AuthenticationResult { Succeeded = false, Error = error };
             }
 
+            // Sign in the user with cookies
+            await _signInManager.SignInAsync(user, isPersistent: false);
+
             var token = await GenerateJwtTokenAsync(user);
             var refreshToken = await GenerateRefreshTokenAsync();
 

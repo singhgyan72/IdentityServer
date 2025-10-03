@@ -1,6 +1,8 @@
-﻿using Duende.IdentityModel.Client;
+﻿using CompanyEmployees.Client.Models;
+using Duende.IdentityModel.Client;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using System.Globalization;
 
@@ -10,11 +12,13 @@ public class BearerTokenHandler : DelegatingHandler
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IOptions<AuthenticationSettings> _authSettings;
 
-    public BearerTokenHandler(IHttpContextAccessor httpContextAccessor, IHttpClientFactory httpClientFactory)
+    public BearerTokenHandler(IHttpContextAccessor httpContextAccessor, IHttpClientFactory httpClientFactory, IOptions<AuthenticationSettings> authSettings)
     {
         _httpContextAccessor = httpContextAccessor;
         _httpClientFactory = httpClientFactory;
+        _authSettings = authSettings;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -27,36 +31,68 @@ public class BearerTokenHandler : DelegatingHandler
         return await base.SendAsync(request, cancellationToken);
     }
 
-    public async Task<string> GetAccessTokenAsync()
+    public async Task<string?> GetAccessTokenAsync()
     {
+        if (_httpContextAccessor.HttpContext == null)
+            return null;
+
+        // Check if using local authentication
+        if (_authSettings.Value.UseLocalLogin)
+        {
+            // For local authentication, get token from cookies
+            if (_httpContextAccessor.HttpContext.Request.Cookies.TryGetValue("AccessToken", out var localToken))
+            {
+                return localToken;
+            }
+            return null;
+        }
+
+        // For IDP authentication, use the existing logic
         var expiresAtToken = await _httpContextAccessor.HttpContext.GetTokenAsync("expires_at");
+        if (string.IsNullOrEmpty(expiresAtToken))
+            return null;
+
         var expiresAtDateTimeOffset = DateTimeOffset.Parse(expiresAtToken, CultureInfo.InvariantCulture);
 
         if ((expiresAtDateTimeOffset.AddSeconds(-60)).ToUniversalTime() > DateTime.UtcNow)
+        {
             return await _httpContextAccessor.HttpContext.GetTokenAsync(OpenIdConnectParameterNames.AccessToken);
+        }
 
         var refreshResponse = await GetRefreshResponseFromIDP();
+        if (refreshResponse == null || string.IsNullOrEmpty(refreshResponse.AccessToken))
+            return null;
 
         var updatedTokens = GetUpdatedTokens(refreshResponse);
 
         var currentAuthenticateResult = await _httpContextAccessor.HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        if (currentAuthenticateResult?.Properties != null && currentAuthenticateResult.Principal != null)
+        {
+            currentAuthenticateResult.Properties.StoreTokens(updatedTokens);
 
-        currentAuthenticateResult.Properties.StoreTokens(updatedTokens);
-
-        await _httpContextAccessor.HttpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            currentAuthenticateResult.Principal,
-            currentAuthenticateResult.Properties);
+            await _httpContextAccessor.HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                currentAuthenticateResult.Principal,
+                currentAuthenticateResult.Properties);
+        }
 
         return refreshResponse.AccessToken;
     }
 
-    private async Task<TokenResponse> GetRefreshResponseFromIDP()
+    private async Task<TokenResponse?> GetRefreshResponseFromIDP()
     {
+        if (_httpContextAccessor.HttpContext == null)
+            return null;
+
         var idpClient = _httpClientFactory.CreateClient("IDPClient");
         var metaDataResponse = await idpClient.GetDiscoveryDocumentAsync();
 
+        if (metaDataResponse.IsError)
+            return null;
+
         var refreshToken = await _httpContextAccessor.HttpContext.GetTokenAsync(OpenIdConnectParameterNames.RefreshToken);
+        if (string.IsNullOrEmpty(refreshToken))
+            return null;
 
         var refreshResponse = await idpClient.RequestRefreshTokenAsync(
             new RefreshTokenRequest
@@ -77,17 +113,17 @@ public class BearerTokenHandler : DelegatingHandler
             new AuthenticationToken
             {
                 Name = OpenIdConnectParameterNames.IdToken,
-                Value = refreshResponse.IdentityToken
+                Value = refreshResponse.IdentityToken ?? string.Empty
             },
             new AuthenticationToken
             {
                 Name = OpenIdConnectParameterNames.AccessToken,
-                Value = refreshResponse.AccessToken
+                Value = refreshResponse.AccessToken ?? string.Empty
             },
             new AuthenticationToken
             {
                 Name = OpenIdConnectParameterNames.RefreshToken,
-                Value = refreshResponse.RefreshToken
+                Value = refreshResponse.RefreshToken ?? string.Empty
             },
             new AuthenticationToken
             {
