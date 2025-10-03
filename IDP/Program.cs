@@ -33,6 +33,7 @@ try
 
     var config = app.Services.GetRequiredService<IConfiguration>();
     var connectionString = config.GetConnectionString("identitySqlConnection");
+
     // Apply migrations and seed (add few users) database
     //SeedUserData.EnsureSeedData(connectionString);
 

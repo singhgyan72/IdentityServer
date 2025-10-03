@@ -16,8 +16,8 @@ public class RoleConfiguration : IEntityTypeConfiguration<IdentityRole>
 		},
 		new IdentityRole
 		{
-			Name = "Visitor",
-			NormalizedName = "VISITOR",
+			Name = "User",
+			NormalizedName = "USER",
 			Id = "6d506b42-9fa0-4ef7-a92a-0b5b0a123665"
 		});
 	}

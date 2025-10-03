@@ -33,7 +33,7 @@ public class SeedUserData
 
                 CreateUser(scope, "Jane", "Doe", "Jane Doe's Avenue 214", "USA",
                     "64aca900-7bc7-4645-b291-38f1b7b5963c", "Password",
-                    "Visitor", "jane@mail.com");
+                    "User", "jane@mail.com");
             }
         }
     }

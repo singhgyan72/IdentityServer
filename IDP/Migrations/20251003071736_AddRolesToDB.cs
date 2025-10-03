@@ -7,7 +7,7 @@
 namespace CompanyEmployees.IDP.Migrations
 {
     /// <inheritdoc />
-    public partial class AddRolesToDb : Migration
+    public partial class AddRolesToDB : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -17,7 +17,7 @@ namespace CompanyEmployees.IDP.Migrations
                 columns: new[] { "Id", "ConcurrencyStamp", "Name", "NormalizedName" },
                 values: new object[,]
                 {
-                    { "6d506b42-9fa0-4ef7-a92a-0b5b0a123665", null, "Visitor", "VISITOR" },
+                    { "6d506b42-9fa0-4ef7-a92a-0b5b0a123665", null, "User", "USER" },
                     { "c3a0cb55-ddaf-4f2f-8419-f3f937698aa1", null, "Administrator", "ADMINISTRATOR" }
                 });
         }
