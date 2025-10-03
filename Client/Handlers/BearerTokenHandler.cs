@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace CompanyEmployees.Client.Handlers;
 
@@ -42,7 +43,27 @@ public class BearerTokenHandler : DelegatingHandler
             // For local authentication, get token from cookies
             if (_httpContextAccessor.HttpContext.Request.Cookies.TryGetValue("AccessToken", out var localToken))
             {
-                return localToken;
+                // Validate that the token is not expired
+                if (!string.IsNullOrEmpty(localToken) && IsTokenValid(localToken))
+                {
+                    return localToken;
+                }
+                else
+                {
+                    // Token is expired or invalid, try to refresh it
+                    var refreshedToken = await RefreshLocalTokenAsync();
+                    if (!string.IsNullOrEmpty(refreshedToken))
+                    {
+                        // Update the cookie with the new token
+                        _httpContextAccessor.HttpContext.Response.Cookies.Append("AccessToken", refreshedToken, new CookieOptions
+                        {
+                            HttpOnly = true,
+                            Secure = true,
+                            SameSite = SameSiteMode.Strict
+                        });
+                        return refreshedToken;
+                    }
+                }
             }
             return null;
         }
@@ -134,5 +155,38 @@ public class BearerTokenHandler : DelegatingHandler
         };
 
         return updatedTokens;
+    }
+
+    private bool IsTokenValid(string token)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            if (!handler.CanReadToken(token))
+                return false;
+
+            var jwtToken = handler.ReadJwtToken(token);
+            return jwtToken.ValidTo > DateTime.UtcNow.AddMinutes(5); // Token should be valid for at least 5 more minutes
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private Task<string?> RefreshLocalTokenAsync()
+    {
+        if (_httpContextAccessor.HttpContext == null)
+            return Task.FromResult<string?>(null);
+
+        // Get refresh token from cookies
+        if (!_httpContextAccessor.HttpContext.Request.Cookies.TryGetValue("RefreshToken", out var refreshToken))
+            return Task.FromResult<string?>(null);
+
+        // For local authentication, we would need to call a refresh endpoint
+        // For now, we'll return null as local token refresh would require additional implementation
+        // In a production scenario, you'd implement a token refresh endpoint in your local auth service
+        
+        return Task.FromResult<string?>(null); // TODO: Implement local token refresh if needed
     }
 }

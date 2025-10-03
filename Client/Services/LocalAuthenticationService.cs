@@ -117,7 +117,7 @@ namespace CompanyEmployees.Client.Services
 
             foreach (var role in roles)
             {
-                claims.Add(new Claim(ClaimTypes.Role, role));
+                claims.Add(new Claim("role", role)); // Use "role" instead of ClaimTypes.Role for consistency with IDP
             }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_authSettings.Value.LocalAuth.JwtToken.Secret));

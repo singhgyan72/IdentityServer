@@ -69,7 +69,8 @@ namespace CompanyEmployees.Client.Controllers
                     {
                         HttpOnly = true,
                         Secure = true,
-                        SameSite = SameSiteMode.Strict
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTime.UtcNow.AddMinutes(60) // Match token expiry
                     });
                 }
 
@@ -79,7 +80,8 @@ namespace CompanyEmployees.Client.Controllers
                     {
                         HttpOnly = true,
                         Secure = true,
-                        SameSite = SameSiteMode.Strict
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTime.UtcNow.AddDays(7) // Refresh tokens last longer
                     });
                 }
 
@@ -145,6 +147,29 @@ namespace CompanyEmployees.Client.Controllers
 
                 if (loginResult.Succeeded)
                 {
+                    // Store tokens in cookies after automatic login
+                    if (!string.IsNullOrEmpty(loginResult.AccessToken))
+                    {
+                        HttpContext.Response.Cookies.Append("AccessToken", loginResult.AccessToken, new CookieOptions
+                        {
+                            HttpOnly = true,
+                            Secure = true,
+                            SameSite = SameSiteMode.Strict,
+                            Expires = DateTime.UtcNow.AddMinutes(60)
+                        });
+                    }
+
+                    if (!string.IsNullOrEmpty(loginResult.RefreshToken))
+                    {
+                        HttpContext.Response.Cookies.Append("RefreshToken", loginResult.RefreshToken, new CookieOptions
+                        {
+                            HttpOnly = true,
+                            Secure = true,
+                            SameSite = SameSiteMode.Strict,
+                            Expires = DateTime.UtcNow.AddDays(7)
+                        });
+                    }
+
                     return RedirectToLocal(returnUrl);
                 }
             }
@@ -170,8 +195,12 @@ namespace CompanyEmployees.Client.Controllers
             else
             {
                 // Local logout
-                // Clear local authentication cookies
-                foreach (var cookie in HttpContext.Request.Cookies.Keys)
+                // Clear authentication token cookies specifically
+                Response.Cookies.Delete("AccessToken");
+                Response.Cookies.Delete("RefreshToken");
+                
+                // Also clear any other authentication-related cookies
+                foreach (var cookie in HttpContext.Request.Cookies.Keys.Where(k => k.StartsWith(".AspNetCore") || k.Contains("Auth")))
                 {
                     Response.Cookies.Delete(cookie);
                 }
