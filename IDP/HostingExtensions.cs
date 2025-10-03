@@ -59,13 +59,13 @@ internal static class HostingExtensions
         builder.Services.Configure<EmailConfirmationTokenProviderOptions>(opt =>
             opt.TokenLifespan = TimeSpan.FromDays(3));
 
-        builder.Services.AddAuthentication()
-        .AddGoogle(options =>
-        {
-            //TODO: register your Google OAuth clientId and clientSecret
-            options.ClientId = "";
-            options.ClientSecret = "";
-        });
+        builder.Services.AddAuthentication();
+        //TODO: register your Google OAuth clientId and clientSecret
+        //.AddGoogle(options =>
+        //{
+        //    options.ClientId = "";
+        //    options.ClientSecret = "";
+        //});
 
         return builder.Build();
     }
