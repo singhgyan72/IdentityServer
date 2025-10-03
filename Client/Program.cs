@@ -1,23 +1,34 @@
 using CompanyEmployees.Client.Extensions;
 using CompanyEmployees.Client.Handlers;
+using CompanyEmployees.Client.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Clear the default claim type mappings to ensure that the claims are not altered during token validation.
 JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
-builder.Services.ConfigureAPIClient();
-
-builder.Services.ConfigureIDPClient(builder.Configuration);
-
+// Configure services
+builder.Services.Configure<AuthenticationSettings>(
+    builder.Configuration.GetSection("Authentication"));
+    
+builder.Services.ConfigureIdentity(builder.Configuration);
 builder.Services.ConfigureAuthentication(builder.Configuration);
+builder.Services.ConfigureHttpClients(builder.Configuration);
+builder.Services.ConfigureAuthorizationPolicy();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<BearerTokenHandler>();
 
-builder.Services.ConfigureAuthorizationPolicy();
+// Configure Anti-forgery
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-XSRF-TOKEN";
+    options.Cookie.Name = "__Host-X-XSRF-TOKEN";
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
 
 builder.Services.AddControllersWithViews();
 
